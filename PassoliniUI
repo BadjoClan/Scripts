@@ -4343,12 +4343,19 @@ do
             local rows=math.ceil(#games/columns)
             container.Size=UDim2.new(1,0,0,rows*cardHeight+math.max(rows-1,0)*gap)
         end
-        layout()
         table.insert(tab._resizeHooks,layout)
+        local function populate()
+        for _,child in ipairs(container:GetChildren())do
+            if child:IsA"Frame"then
+                child:Destroy()
+            end
+        end
+        layout()
         for index,entry in ipairs(games)do
             local status=string.lower(tostring(entry.Status or"updated"))
             local here=tonumber(entry.PlaceId)==game.PlaceId or(entry.UniverseId~=nil and tonumber(entry.UniverseId)==game.GameId)
-            local maintenance=status=="maintenance"
+            local maintenance=status=="maintenance"or status=="detected"
+            local outdated=status=="outdated"
             local card=c("Frame",{Name=tostring(entry.Name),BackgroundColor3=b.Surface2,BorderSizePixel=0,LayoutOrder=index,Parent=container})
             e(card)
             local cardStroke=h(card,here and b.Accent or b.Stroke)
@@ -4359,17 +4366,24 @@ do
                 e(badge)
             end
             f{Position=UDim2.fromOffset(10,104),Size=UDim2.new(1,-20,0,18),Text=tostring(entry.Name or"?"),TextSize=14,FontFace=i.Bold,Parent=card}
-            local dot=c("Frame",{Position=UDim2.fromOffset(10,129),Size=UDim2.fromOffset(6,6),BackgroundColor3=b.Text,BackgroundTransparency=maintenance and 1 or 0,BorderSizePixel=0,Parent=card})
-            if maintenance then
+            local dot=c("Frame",{Position=UDim2.fromOffset(10,129),Size=UDim2.fromOffset(6,6),BackgroundColor3=b.Text,BackgroundTransparency=(maintenance or outdated)and 1 or 0,BorderSizePixel=0,Parent=card})
+            if maintenance or outdated then
                 h(dot,b.Muted)
             end
-            f{Position=UDim2.fromOffset(22,124),Size=UDim2.new(1,-32,0,16),Text=maintenance and"Maintenance"or"Up to date",TextSize=12,FontFace=i.Regular,TextColor3=b.Muted,Parent=card}
+            f{Position=UDim2.fromOffset(22,124),Size=UDim2.new(1,-32,0,16),Text=status=="detected"and"Stopped"or maintenance and"Maintenance"or outdated and"Outdated"or"Up to date",TextSize=12,FontFace=i.Regular,TextColor3=b.Muted,Parent=card}
             if here then
                 local badge=f{AnchorPoint=Vector2.new(0,1),Position=UDim2.new(0,6,1,-6),Size=UDim2.fromOffset(96,18),BackgroundTransparency=0,BackgroundColor3=b.Accent,Text="YOU ARE HERE",TextSize=12,FontFace=i.Display,TextColor3=WHITE,TextXAlignment=Enum.TextXAlignment.Center,ZIndex=2,Parent=image}
                 e(badge)
             end
         end
-        return n(self,{},{},container,"GameGrid")
+        end
+        populate()
+        local object=n(self,{},{},container,"GameGrid")
+        function object:SetGames(list)
+            games=type(list)=="table"and list or{}
+            populate()
+        end
+        return object
     end
     j.CreateGameGrid=j.GameGrid
 
@@ -4529,7 +4543,7 @@ do
     end
 
     d.UniversalURL="https://raw.githubusercontent.com/BadjoClan/Passolini-DIST/refs/heads/main/Universal.lua"
-    d.GamesURL="https://raw.githubusercontent.com/BadjoClan/Scripts/refs/heads/main/PassoliniGames.json"
+    d.GamesURL="https://passolini-bot.akkiwi-scripts.workers.dev/showcase"
     -- Ui:SetUniversal(fn): a script that carries the universal tools itself (Universal.lua run directly) hands its attach
     -- function over, so the hub zone does not download the module. fn(tab, Window, Ui, standalone).
     function d.SetUniversal(first,second)
@@ -4562,9 +4576,15 @@ do
         for _,entry in ipairs(list)do
             if type(entry)=="table"then
                 local placeId=tonumber(entry.PlaceId or entry.place_id or entry.placeId)
+                if not placeId then
+                    placeId=tonumber(string.match(tostring(entry.place_id or""),"%d+"))
+                end
                 local name=entry.Name or entry.name
+                if type(name)=="string"and entry.slug then
+                    name=string.gsub(name,"%-"," ")
+                end
                 if placeId and name then
-                    table.insert(games,{Name=tostring(name),PlaceId=placeId,UniverseId=tonumber(entry.UniverseId or entry.universe_id or entry.universeId),Image=entry.Image or entry.image,Status=entry.Status or entry.status})
+                    table.insert(games,{Name=tostring(name),PlaceId=placeId,UniverseId=tonumber(entry.UniverseId or entry.universe_id or entry.universeId or entry.game_id),Image=entry.Image or entry.image,Status=entry.Status or entry.status})
                 end
             end
         end
@@ -4576,7 +4596,9 @@ do
         if type(given)=="table"and#given>0 then
             return normaliseGames(given)
         end
-        local text=readSource(environment.PASSOLINI_GAMES_FILE,environment.PASSOLINI_GAMES_URL or d.GamesURL)
+        local gamesURL=environment.PASSOLINI_GAMES_URL or d.GamesURL
+        gamesURL=gamesURL..(string.find(gamesURL,"?",1,true)and"&"or"?").."t="..tostring(os.time())
+        local text=readSource(environment.PASSOLINI_GAMES_FILE,gamesURL)
         if not text then
             return nil
         end
@@ -4587,7 +4609,7 @@ do
         if not parsed or type(decoded)~="table"then
             return nil
         end
-        return normaliseGames(decoded.games or decoded)
+        return normaliseGames(decoded.scripts or decoded.games or decoded)
     end
     -- The universal module is a pushed (keyed, obfuscated) script: run with PASSOLINI_UNIVERSAL_ATTACH set it returns attach().
     local function loadUniversal()
@@ -4633,6 +4655,13 @@ do
             local release=hold()
             task.spawn(function()
                 local games=loadGames()
+                if not(games and#games>0)then
+                    release()
+                    task.wait(d.GamesRetry or 60)
+                    if not window._destroyed then
+                        games=loadGames()
+                    end
+                end
                 if not window._destroyed then
                     if games and#games>0 then
                         hubTab:GameGrid{Games=games}
