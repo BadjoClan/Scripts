@@ -10,6 +10,34 @@ local ac=ab.LocalPlayer
 local d={}
 d.Flags={}
 d.Windows={}
+-- Layout constants. Change SIDEBAR_W / TOPBAR_H here and the whole window re-aligns.
+local LAYOUT={
+    SIDEBAR_W=170,
+    DIVIDER_W=1,
+    ACCENT_H=3,
+    TOPBAR_BODY_H=45,
+    TOPBAR_LINE_H=1,
+    SIDEBAR_PAD=8,
+    TABS_TOP=10,
+    USER_H=58,
+    SEARCH_H=30,
+    SEARCH_GAP=8,
+    INDICATOR_W=3,
+    INDICATOR_H=26,
+    CONTENT_PAD=16,
+    TWO_COL_MIN=500,
+    GRID_CELL_W=170,
+    GRID_GAP=10,
+    GRID_SLACK=16,
+    WINDOW_MARGIN=24,
+    FIT_MIN_W=480,
+    FIT_MIN_H=300,
+    SCALE_FLOOR=.45,
+    DEFAULT_W=860,
+    DEFAULT_H=540,
+}
+LAYOUT.TOPBAR_H=LAYOUT.ACCENT_H+LAYOUT.TOPBAR_BODY_H+LAYOUT.TOPBAR_LINE_H
+LAYOUT.CONTENT_X=LAYOUT.SIDEBAR_W+LAYOUT.DIVIDER_W
 local function k(b,c)
     local a={}
     if type(b)=="string"then
@@ -34,6 +62,9 @@ local function n(f,b,a,e,g)
     a._type=g
     a._frame=e
     a._listeners=a._listeners or{}
+    if f and type(f._scheduleBalance)=="function"then
+        f:_scheduleBalance()
+    end
     local c=f and f.Window
     -- AKkiwi: search index + "last control added" clock for AutoLoad.
     if c then
@@ -372,13 +403,24 @@ end
 local N={}
 local function ag(f)
     local g=q()
-    local h=math.max(f.AbsoluteSize.X,f.AbsoluteSize.Y)*2.2
+    -- AbsoluteSize / AbsolutePosition are in screen pixels; offsets set inside f are multiplied by every UIScale above it.
+    local uiScale=1
+    local node=f
+    while node and not node:IsA"ScreenGui"do
+        local scaler=node:FindFirstChildOfClass"UIScale"
+        if scaler then
+            uiScale*=scaler.Scale
+        end
+        node=node.Parent
+    end
+    uiScale=math.max(uiScale,.01)
+    local h=math.max(f.AbsoluteSize.X,f.AbsoluteSize.Y)*2.2/uiScale
     local d=table.remove(N)
     if not d then
         d=c("Frame",{AnchorPoint=Vector2.new(.5,.5),BackgroundColor3=b.Accent,BorderSizePixel=0})
         e(d,UDim.new(1,0))
     end
-    d.Position=UDim2.fromOffset(g.X-f.AbsolutePosition.X,g.Y-f.AbsolutePosition.Y)
+    d.Position=UDim2.fromOffset((g.X-f.AbsolutePosition.X)/uiScale,(g.Y-f.AbsolutePosition.Y)/uiScale)
     d.Size=UDim2.fromOffset(0,0)
     d.BackgroundTransparency=.82
     d.ZIndex=f.ZIndex+1
@@ -2112,9 +2154,9 @@ function d.Window(Z,m)
     if type(m.Keybind)=="string"then
         m.Keybind=Enum.KeyCode[m.Keybind]
     end
-    local U=m.Size or UDim2.fromOffset(860,540)
+    local U=m.Size or UDim2.fromOffset(LAYOUT.DEFAULT_W,LAYOUT.DEFAULT_H)
     local N=m.Keybind or Enum.KeyCode.RightControl
-    local j=setmetatable({Tabs={},CurrentTab=nil,Open=true,Keybind=N,_connections={},_controls={},_inputListeners={Began={},Changed={},Ended={}},_destroyed=false},g)
+    local j=setmetatable({Tabs={},CurrentTab=nil,Open=true,Keybind=N,_connections={},_controls={},_inputListeners={Began={},Changed={},Ended={}},_destroyed=false,_wantSize=U},g)
     local function I(a)
         return function(...)
             for b,a in ipairs(j._inputListeners[a])do
@@ -2127,6 +2169,10 @@ function d.Window(Z,m)
     table.insert(j._connections,p.InputEnded:Connect(I"Ended"))
     local r=c("ScreenGui",{Name=m.Name or E,IgnoreGuiInset=true,ResetOnSpawn=false,DisplayOrder=999,ZIndexBehavior=Enum.ZIndexBehavior.Sibling})
     j.Gui=r
+    -- Phones: keep the window and everything parented to the ScreenGui (notifications, reopen pill) out of the notch / home bar.
+    pcall(function()
+        r.ScreenInsets=Enum.ScreenInsets.DeviceSafeInsets
+    end)
     local z=c(o,{Name="Window",AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromScale(.5,.5),Size=U,BackgroundTransparency=1,Parent=r})
     j.Root=z
     local P=c("UIScale",{Parent=z})
@@ -2141,19 +2187,19 @@ function d.Window(Z,m)
     x(n,UDim2.fromOffset(500,180),UDim2.new(.5,0,1,8),.86,270)
     x(n,UDim2.fromOffset(130,60),UDim2.new(0,-10,1,-10),.75,90)
     x(n,UDim2.fromOffset(520,240),UDim2.new(1,-14,0,10),.92,90)
-    local A=c(o,{Name="Sidebar",Position=UDim2.fromOffset(0,49),Size=UDim2.new(0,170,1,-49),BackgroundColor3=b.Surface,BorderSizePixel=0,Parent=n})
+    local A=c(o,{Name="Sidebar",Position=UDim2.fromOffset(0,LAYOUT.TOPBAR_H),Size=UDim2.new(0,LAYOUT.SIDEBAR_W,1,-LAYOUT.TOPBAR_H),BackgroundColor3=b.Surface,BorderSizePixel=0,Parent=n})
     j.Sidebar=A
-    c(o,{Position=UDim2.new(0,170,0,49),Size=UDim2.new(0,1,1,-49),BackgroundColor3=b.Stroke,BorderSizePixel=0,Parent=n})
+    c(o,{Position=UDim2.new(0,LAYOUT.SIDEBAR_W,0,LAYOUT.TOPBAR_H),Size=UDim2.new(0,LAYOUT.DIVIDER_W,1,-LAYOUT.TOPBAR_H),BackgroundColor3=b.Stroke,BorderSizePixel=0,Parent=n})
     local J=c(o,{Name="Header",Size=UDim2.new(1,0,0,72),BackgroundTransparency=1,Visible=false,Parent=A})
     local V=c("ImageLabel",{Position=UDim2.fromOffset(22,27),Size=UDim2.fromOffset(30,28),BackgroundTransparency=1,Image="",ImageColor3=b.Accent,ScaleType=Enum.ScaleType.Fit,Parent=J})
     v(V,m.Icon or s.Logo)
     f{Position=UDim2.fromOffset(60,25),Size=UDim2.new(1,-70,0,20),Text=m.Title or"Airflow",TextSize=20,Parent=J}
     f{Position=UDim2.fromOffset(60,45),Size=UDim2.new(1,-70,0,14),Text=m.Subtitle or"",TextSize=13,FontFace=i.Regular,TextColor3=b.Muted,Parent=J}
-    local w=c("ScrollingFrame",{Name="Tabs",Position=UDim2.fromOffset(0,10),Size=UDim2.new(1,0,1,-68),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=0,AutomaticCanvasSize=Enum.AutomaticSize.Y,CanvasSize=UDim2.new(),Parent=A})
+    local w=c("ScrollingFrame",{Name="Tabs",Position=UDim2.fromOffset(0,LAYOUT.TABS_TOP),Size=UDim2.new(1,0,1,-(LAYOUT.TABS_TOP+LAYOUT.USER_H)),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=0,AutomaticCanvasSize=Enum.AutomaticSize.Y,CanvasSize=UDim2.new(),Parent=A})
     j.TabList=w
-    t(w,8,8,4,4)
+    t(w,LAYOUT.SIDEBAR_PAD,LAYOUT.SIDEBAR_PAD,4,4)
     c(M,{SortOrder=Enum.SortOrder.LayoutOrder,Padding=UDim.new(0,4),Parent=w})
-    local B=c(o,{AnchorPoint=Vector2.new(0,.5),Position=UDim2.fromOffset(0,0),Size=UDim2.fromOffset(3,26),BackgroundColor3=b.Accent,BorderSizePixel=0,Visible=false,ZIndex=2,Parent=A})
+    local B=c(o,{AnchorPoint=Vector2.new(0,.5),Position=UDim2.fromOffset(0,0),Size=UDim2.fromOffset(LAYOUT.INDICATOR_W,LAYOUT.INDICATOR_H),BackgroundColor3=b.Accent,BorderSizePixel=0,Visible=false,ZIndex=2,Parent=A})
     e(B,UDim.new(1,0))
     j.Indicator=B
     local R=w.CanvasPosition.Y
@@ -2182,7 +2228,7 @@ function d.Window(Z,m)
     end
     y:GetPropertyChangedSignal(H):Connect(T)
     task.defer(T)
-    local C=c(o,{Name="Content",Position=UDim2.fromOffset(171,49),Size=UDim2.new(1,-171,1,-49),BackgroundTransparency=1,ClipsDescendants=true,Parent=n})
+    local C=c(o,{Name="Content",Position=UDim2.fromOffset(LAYOUT.CONTENT_X,LAYOUT.TOPBAR_H),Size=UDim2.new(1,-LAYOUT.CONTENT_X,1,-LAYOUT.TOPBAR_H),BackgroundTransparency=1,ClipsDescendants=true,Parent=n})
     j.Content=C
     j._outLayer=c(G,{Name="TransitionOut",Size=UDim2.fromScale(1,1),BackgroundTransparency=1,Visible=false,ZIndex=2,Parent=C})
     j._inLayer=c(G,{Name="TransitionIn",Size=UDim2.fromScale(1,1),BackgroundTransparency=1,Visible=false,ZIndex=3,Parent=C})
@@ -2274,7 +2320,8 @@ function d.Window(Z,m)
     z.Visible=false
     j:_fitToScreen(true)
     table.insert(j._connections,r:GetPropertyChangedSignal(H):Connect(function()
-        j:_fitToScreen()
+        -- instant: the clamp below must see the final scale, not a tween in progress
+        j:_fitToScreen(true)
         j:_clampToScreen()
     end))
     if m.OpenButton~=false then
@@ -2409,7 +2456,11 @@ function g:_enableDrag()
         local g=d()
         local h=1-math.exp(-f*45)
         local e=g:Lerp(b,h)
-        self.Root.Position=UDim2.fromOffset(e.X,e.Y)
+        local screen=self.Gui.AbsoluteSize
+        if screen.X>0 and screen.Y>0 then
+            -- scale position: follows a screen resize or rotation (an offset in pixels would not)
+            self.Root.Position=UDim2.fromScale(e.X/screen.X,e.Y/screen.Y)
+        end
     end))
 end
 local function Z(b,d)
@@ -2442,6 +2493,9 @@ end
 function g:_playIntro(c)
     if self._introDone then
         return
+    end
+    if not self.CurrentTab and self.Tabs[1]then
+        self:SelectTab(self.Tabs[1])
     end
     self._introDone=true
     task.delay(1,function()
@@ -2554,19 +2608,35 @@ function g:_showLoader(g)
         end)
     end)
 end
-function g:_fitToScreen(d)
-    local b=self.Gui.AbsoluteSize
-    if b.X==0 or b.Y==0 then
+function g:_fitToScreen(instant)
+    local screen=self.Gui.AbsoluteSize
+    if screen.X==0 or screen.Y==0 then
         return
     end
-    local c=self.Root.Size
-    local e=math.min(1,(b.X-24)/math.max(c.X.Offset,1),(b.Y-24)/math.max(c.Y.Offset,1))
-    self._fitScale=math.max(e,.45)
+    local root=self.Root
+    local want=self._wantSize or root.Size
+    self._wantSize=want
+    -- 1. size: what the user wants, shrunk to the screen but never below the minimum
+    local availX,availY=screen.X-LAYOUT.WINDOW_MARGIN,screen.Y-LAYOUT.WINDOW_MARGIN
+    local width=math.clamp(math.floor(availX),math.min(LAYOUT.FIT_MIN_W,want.X.Offset),want.X.Offset)
+    local height=math.clamp(math.floor(availY),math.min(LAYOUT.FIT_MIN_H,want.Y.Offset),want.Y.Offset)
+    if width~=root.Size.X.Offset or height~=root.Size.Y.Offset then
+        root.Size=UDim2.fromOffset(width,height)
+    end
+    -- 2. scale: only what the minimum size could not absorb
+    self._fitScale=math.max(math.min(1,availX/math.max(width,1),availY/math.max(height,1)),LAYOUT.SCALE_FLOOR)
     if self._introDone and self.Open then
-        if d then
+        if instant then
             self.Scale.Scale=self._fitScale
         else
             a(self.Scale,{Scale=self._fitScale},.2)
+        end
+    end
+    -- 3. tabs: column count and grids depend on the width
+    for _,tab in ipairs(self.Tabs)do
+        tab:_applyColumns()
+        for _,hook in ipairs(tab._resizeHooks or{})do
+            pcall(hook)
         end
     end
 end
@@ -2574,13 +2644,18 @@ function g:_clampToScreen()
     if not self.KeepOnScreen then
         return
     end
-    local b=self.Gui.AbsoluteSize
-    local d=self.Root
-    local c=d.AbsoluteSize/2
-    local e=d.AbsolutePosition+c-self.Gui.AbsolutePosition
-    local f=Vector2.new(math.clamp(e.X,math.min(c.X,b.X/2),math.max(b.X-c.X,b.X/2)),math.clamp(e.Y,math.min(c.Y,b.Y/2),math.max(b.Y-c.Y,b.Y/2)))
-    if(f-e).Magnitude>.5 then
-        a(d,{Position=UDim2.fromOffset(f.X,f.Y)},.25,Enum.EasingStyle.Quint)
+    local screen=self.Gui.AbsoluteSize
+    if screen.X<=0 or screen.Y<=0 then
+        return
+    end
+    local root=self.Root
+    -- final size, not AbsoluteSize: the scale may still be tweening
+    local half=Vector2.new(root.Size.X.Offset,root.Size.Y.Offset)*(self._fitScale or 1)/2
+    local position=root.Position
+    local center=Vector2.new(position.X.Scale*screen.X+position.X.Offset,position.Y.Scale*screen.Y+position.Y.Offset)
+    local target=Vector2.new(math.clamp(center.X,math.min(half.X,screen.X/2),math.max(screen.X-half.X,screen.X/2)),math.clamp(center.Y,math.min(half.Y,screen.Y/2),math.max(screen.Y-half.Y,screen.Y/2)))
+    if(target-center).Magnitude>.5 then
+        a(root,{Position=UDim2.fromScale(target.X/screen.X,target.Y/screen.Y)},.25,Enum.EasingStyle.Quint)
     end
 end
 function g:_createOpenButton(j)
@@ -2640,23 +2715,27 @@ function g:_enableResize(i)
     local h=self.Root.Size
     local k=Vector2.zero
     local e
+    local rawTarget
     local function screenMax()
         local screen=self.Gui.AbsoluteSize
         if screen.X<=0 or screen.Y<=0 then
             return j
         end
-        return Vector2.new(math.min(j.X,math.max(screen.X-24,i.X)),math.min(j.Y,math.max(screen.Y-24,i.Y)))
+        return Vector2.new(math.min(j.X,math.max(screen.X-LAYOUT.WINDOW_MARGIN,i.X)),math.min(j.Y,math.max(screen.Y-LAYOUT.WINDOW_MARGIN,i.Y)))
     end
     local dragByMouse=false
     local function finishResize()
         d=false
         a(g,{ImageTransparency=.8},.17)
         resizePreview.Visible=false
-        if e and(e.X~=self.Root.Size.X.Offset or e.Y~=self.Root.Size.Y.Offset)then
-            self.Root.Size=UDim2.fromOffset(e.X,e.Y)
-            self._wantSize=UDim2.fromOffset(e.X,e.Y)
+        if e then
+            -- The size the user asked for is remembered. When the screen capped it on an axis, keep the older wish
+            -- unless the new size is bigger: a small screen must not shrink what a big screen would allow again.
+            local old=self._wantSize or self.Root.Size
+            local asked=rawTarget or e
+            self._wantSize=UDim2.fromOffset(asked.X>e.X and math.max(old.X.Offset,e.X) or e.X,asked.Y>e.Y and math.max(old.Y.Offset,e.Y) or e.Y)
         end
-        e=nil
+        e,rawTarget=nil,nil
         self:_fitToScreen()
         self:_clampToScreen()
     end
@@ -2666,7 +2745,7 @@ function g:_enableResize(i)
             dragByMouse=b.UserInputType==Enum.UserInputType.MouseButton1
             h=self.Root.Size
             k=q()
-            e=nil
+            e,rawTarget=nil,nil
             a(g,{ImageTransparency=.35},.1)
         end
     end)
@@ -2696,8 +2775,10 @@ function g:_enableResize(i)
         end
         local delta=(q()-k)/self.Scale.Scale
         local limit=screenMax()
-        local target=Vector2.new(math.clamp(h.X.Offset+delta.X*2,i.X,math.max(limit.X,i.X)),math.clamp(h.Y.Offset+delta.Y*2,i.Y,math.max(limit.Y,i.Y)))
+        local dragX,dragY=h.X.Offset+delta.X*2,h.Y.Offset+delta.Y*2
+        local target=Vector2.new(math.clamp(dragX,i.X,math.max(limit.X,i.X)),math.clamp(dragY,i.Y,math.max(limit.Y,i.Y)))
         e=Vector2.new(math.floor(target.X+.5),math.floor(target.Y+.5))
+        rawTarget=Vector2.new(math.floor(math.clamp(dragX,i.X,math.max(j.X,i.X))+.5),math.floor(math.clamp(dragY,i.Y,math.max(j.Y,i.Y))+.5))
         local shown=e*self.Scale.Scale
         resizePreview.Position=self.Root.Position
         resizePreview.Size=UDim2.fromOffset(shown.X,shown.Y)
@@ -2840,7 +2921,7 @@ function g:Tab(g,s)
         g.Icon=s
     end
     local d=setmetatable({Name=g.Name or"Tab",Window=self,_order=0},j)
-    local l=c("TextButton",{Size=UDim2.new(1,0,0,l and 42 or 36),BackgroundColor3=Color3.fromRGB(27,14,16),BackgroundTransparency=1,Text="",AutoButtonColor=false,LayoutOrder=(g.Hub and 1000 or 0)+#self.Tabs+1,Parent=self.TabList})
+    local l=c("TextButton",{Size=UDim2.new(1,0,0,l and 42 or 36),BackgroundColor3=Color3.fromRGB(27,14,16),BackgroundTransparency=1,Text="",AutoButtonColor=false,LayoutOrder=g.Hub and 1000+(g.HubOrder or(#self.Tabs+1))or #self.Tabs+1,Parent=self.TabList})
     e(l)
     local q=h(l,Color3.fromRGB(74,22,28),1)
     d._button=l
@@ -2854,9 +2935,9 @@ function g:Tab(g,s)
     d._label=f{Position=UDim2.fromOffset(p and 36 or 14,0),Size=UDim2.new(1,-(p and 44 or 22),1,0),Text=d.Name,TextColor3=b.Muted,Parent=l}
     local m=c("Frame",{Name=d.Name,Size=UDim2.fromScale(1,1),BackgroundTransparency=1,Visible=false,Parent=self.Content})
     d._page=m
-    f{Position=UDim2.fromOffset(16,12),Size=UDim2.new(1,-32,0,24),Text=string.upper(d.Name),TextSize=21,FontFace=i.Display,Parent=m}
+    f{Position=UDim2.fromOffset(LAYOUT.CONTENT_PAD,12),Size=UDim2.new(1,-LAYOUT.CONTENT_PAD*2,0,24),Text=string.upper(d.Name),TextSize=21,FontFace=i.Display,Parent=m}
     if g.Desc then
-        f{Position=UDim2.fromOffset(16,36),Size=UDim2.new(1,-32,0,16),Text=g.Desc,TextSize=13,FontFace=i.Regular,TextColor3=b.Muted,Parent=m}
+        f{Position=UDim2.fromOffset(LAYOUT.CONTENT_PAD,36),Size=UDim2.new(1,-LAYOUT.CONTENT_PAD*2,0,16),Text=g.Desc,TextSize=13,FontFace=i.Regular,TextColor3=b.Muted,Parent=m}
     end
     local u=g.Desc and 60 or 44
     local n=c("ScrollingFrame",{Position=UDim2.fromOffset(0,u),Size=UDim2.new(1,0,1,-u),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=2,ScrollBarImageColor3=b.Accent,ScrollBarImageTransparency=.5,AutomaticCanvasSize=Enum.AutomaticSize.Y,CanvasSize=UDim2.new(),Parent=m})
@@ -3051,9 +3132,9 @@ function g:_placeIndicator(d)
     if not b.Visible then
         b.Visible=true
         b.Position=UDim2.fromOffset(0,c)
-        b.Size=UDim2.fromOffset(3,0)
+        b.Size=UDim2.fromOffset(LAYOUT.INDICATOR_W,0)
     end
-    a(b,{Position=UDim2.fromOffset(0,c),Size=UDim2.fromOffset(3,26)},.35,Enum.EasingStyle.Back)
+    a(b,{Position=UDim2.fromOffset(0,c),Size=UDim2.fromOffset(LAYOUT.INDICATOR_W,LAYOUT.INDICATOR_H)},.35,Enum.EasingStyle.Back)
 end
 function g:SelectTab(c)
     if self.CurrentTab==c then
@@ -3283,16 +3364,16 @@ local akkiwiLinks={{Name="RScripts",Url="https://rscripts.net/@akkiwi"},{Name="S
 function g:_createSearch()
     local list=self.TabList
     local sidebar=list.Parent
-    list.Position=list.Position+UDim2.fromOffset(0,38)
-    list.Size=list.Size-UDim2.fromOffset(0,38)
-    local box=c("Frame",{Name="Search",Position=UDim2.fromOffset(8,10),Size=UDim2.new(1,-16,0,30),BackgroundColor3=b.Surface,BorderSizePixel=0,Parent=sidebar})
+    list.Position=list.Position+UDim2.fromOffset(0,LAYOUT.SEARCH_H+LAYOUT.SEARCH_GAP)
+    list.Size=list.Size-UDim2.fromOffset(0,LAYOUT.SEARCH_H+LAYOUT.SEARCH_GAP)
+    local box=c("Frame",{Name="Search",Position=UDim2.fromOffset(LAYOUT.SIDEBAR_PAD,LAYOUT.TABS_TOP),Size=UDim2.new(1,-LAYOUT.SIDEBAR_PAD*2,0,LAYOUT.SEARCH_H),BackgroundColor3=b.Surface,BorderSizePixel=0,Parent=sidebar})
     e(box,UDim.new(0,7))
     local boxStroke=h(box)
     local icon=c("ImageLabel",{AnchorPoint=Vector2.new(0,.5),Position=UDim2.new(0,9,.5,0),Size=UDim2.fromOffset(14,14),BackgroundTransparency=1,ImageColor3=b.Muted,ScaleType=Enum.ScaleType.Fit,Parent=box})
     v(icon,"search")
     local input=c("TextBox",{Position=UDim2.fromOffset(30,0),Size=UDim2.new(1,-36,1,0),BackgroundTransparency=1,Text="",PlaceholderText="Search...",PlaceholderColor3=b.Muted,TextColor3=b.Text,TextSize=13,FontFace=i.Regular,TextXAlignment=Enum.TextXAlignment.Left,ClearTextOnFocus=false,Parent=box})
     local results=c("ScrollingFrame",{Name="SearchResults",Position=list.Position,Size=list.Size,BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=0,AutomaticCanvasSize=Enum.AutomaticSize.Y,CanvasSize=UDim2.new(),Visible=false,Parent=sidebar})
-    t(results,8,8,4,4)
+    t(results,LAYOUT.SIDEBAR_PAD,LAYOUT.SIDEBAR_PAD,4,4)
     c("UIListLayout",{SortOrder=Enum.SortOrder.LayoutOrder,Padding=UDim.new(0,4),Parent=results})
     table.insert(self._controls,box)
     table.insert(self._controls,results)
@@ -3398,7 +3479,7 @@ function g:_startAutoLoad()
     task.spawn(function()
         repeat
             task.wait(.25)
-        until self._destroyed or self._configLoaded or(self._lastControlAt and os.clock()-self._lastControlAt>=self.AutoLoadDelay)
+        until self._destroyed or self._configLoaded or((self._hubPending or 0)<=0 and self._lastControlAt and os.clock()-self._lastControlAt>=self.AutoLoadDelay)
         if self._destroyed or self._configLoaded then
             return
         end
@@ -3952,7 +4033,7 @@ do
     -- Panels: every Section opens a panel; panels fill two columns when the window is wide enough.
     function j:_initPanels(cfg)
         -- Side margins are on the holder: a UIPadding on the scroller is ignored by an AutomaticSize child (measured live).
-        local holder=c("Frame",{Name="Columns",Position=UDim2.fromOffset(16,0),Size=UDim2.new(1,-32,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundTransparency=1,Parent=self.Scroller})
+        local holder=c("Frame",{Name="Columns",Position=UDim2.fromOffset(LAYOUT.CONTENT_PAD,0),Size=UDim2.new(1,-LAYOUT.CONTENT_PAD*2,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundTransparency=1,Parent=self.Scroller})
         local columns={}
         for index=1,2 do
             local column=c("Frame",{Name="Column"..index,Size=UDim2.new(.5,-5,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundTransparency=1,Parent=holder})
@@ -3972,7 +4053,7 @@ do
         if self._forceSingle or(self._wantColumns and self._wantColumns<2)then
             return false
         end
-        return self.Window.Root.Size.X.Offset-203>=500
+        return self.Window.Root.Size.X.Offset-(LAYOUT.CONTENT_X+LAYOUT.CONTENT_PAD*2)>=LAYOUT.TWO_COL_MIN
     end
     function j:_applyColumns(force)
         local columns=self._columns
@@ -4003,6 +4084,20 @@ do
             panel.frame.Parent=columns[target]
         end
     end
+    -- One rebalance per frame, deferred: a script that builds a whole tab in one go is balanced before the first render,
+    -- so nothing visibly jumps. Controls and panels added later (after a yield) trigger another pass.
+    function j:_scheduleBalance()
+        if self._balanceQueued then
+            return
+        end
+        self._balanceQueued=true
+        task.defer(function()
+            self._balanceQueued=false
+            if not self.Window._destroyed then
+                self:_applyColumns(true)
+            end
+        end)
+    end
     function j:_newPanel(title)
         local two=self._two
         local target=(two and #self._panels%2==1)and 2 or 1
@@ -4019,20 +4114,7 @@ do
         end
         table.insert(self._panels,panel)
         table.insert(self._panelFrames,frame)
-        -- Rebalance once the script has stopped adding controls to this tab.
-        self._balanceAt=os.clock()
-        if two and not self._balancing then
-            self._balancing=true
-            task.spawn(function()
-                repeat
-                    task.wait(.2)
-                until self.Window._destroyed or(os.clock()-self._balanceAt>.4 and os.clock()-(self.Window._lastControlAt or 0)>.4)
-                self._balancing=false
-                if not self.Window._destroyed then
-                    self:_applyColumns(true)
-                end
-            end)
-        end
+        self:_scheduleBalance()
         rawset(self,"List",frame)
         if self._empty then
             self._empty.Visible=false
@@ -4056,9 +4138,9 @@ do
         local body=self.Body
         local info=cfg.KeyInfo
         self.KeyInfo=info
-        c("Frame",{Name="AccentLine",Size=UDim2.new(1,0,0,3),BackgroundColor3=b.Accent,BorderSizePixel=0,ZIndex=6,Parent=body})
-        local bar=c("Frame",{Name="TopBar",Position=UDim2.fromOffset(0,3),Size=UDim2.new(1,0,0,45),BackgroundColor3=b.Surface,BorderSizePixel=0,ZIndex=5,Parent=body})
-        c("Frame",{Position=UDim2.new(0,0,1,0),Size=UDim2.new(1,0,0,1),BackgroundColor3=b.Stroke,BorderSizePixel=0,ZIndex=5,Parent=bar})
+        c("Frame",{Name="AccentLine",Size=UDim2.new(1,0,0,LAYOUT.ACCENT_H),BackgroundColor3=b.Accent,BorderSizePixel=0,ZIndex=6,Parent=body})
+        local bar=c("Frame",{Name="TopBar",Position=UDim2.fromOffset(0,LAYOUT.ACCENT_H),Size=UDim2.new(1,0,0,LAYOUT.TOPBAR_BODY_H),BackgroundColor3=b.Surface,BorderSizePixel=0,ZIndex=5,Parent=body})
+        c("Frame",{Position=UDim2.new(0,0,1,0),Size=UDim2.new(1,0,0,LAYOUT.TOPBAR_LINE_H),BackgroundColor3=b.Stroke,BorderSizePixel=0,ZIndex=5,Parent=bar})
         local left=c("Frame",{Position=UDim2.fromOffset(14,0),Size=UDim2.new(1,-250,1,0),BackgroundTransparency=1,ClipsDescendants=true,ZIndex=6,Parent=bar})
         c("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,VerticalAlignment=Enum.VerticalAlignment.Center,SortOrder=Enum.SortOrder.LayoutOrder,Padding=UDim.new(0,10),Parent=left})
         local logo=c("ImageLabel",{Size=UDim2.fromOffset(20,20),BackgroundTransparency=1,ImageColor3=b.Accent,ScaleType=Enum.ScaleType.Fit,LayoutOrder=1,ZIndex=6,Parent=left})
@@ -4098,7 +4180,7 @@ do
         end)
 
         local sidebar=self.Sidebar
-        local user=c("Frame",{Name="User",AnchorPoint=Vector2.new(0,1),Position=UDim2.new(0,0,1,0),Size=UDim2.new(1,0,0,58),BackgroundTransparency=1,Parent=sidebar})
+        local user=c("Frame",{Name="User",AnchorPoint=Vector2.new(0,1),Position=UDim2.new(0,0,1,0),Size=UDim2.new(1,0,0,LAYOUT.USER_H),BackgroundTransparency=1,Parent=sidebar})
         c("Frame",{Size=UDim2.new(1,0,0,1),BackgroundColor3=b.Stroke,BorderSizePixel=0,Parent=user})
         local avatar=c("ImageLabel",{Position=UDim2.fromOffset(12,13),Size=UDim2.fromOffset(32,32),BackgroundColor3=b.Surface3,BorderSizePixel=0,Image="rbxthumb://type=AvatarHeadShot&id="..tostring(ac.UserId).."&w=48&h=48",Parent=user})
         e(avatar)
@@ -4183,35 +4265,6 @@ do
         end
     end
 
-    -- Small screens: shrink the window before scaling it, so text stays readable on a phone.
-    local baseFit=g._fitToScreen
-    function g:_fitToScreen(instant)
-        local screen=self.Gui.AbsoluteSize
-        if screen.X>0 and screen.Y>0 then
-            local want=self._wantSize or self.Root.Size
-            self._wantSize=want
-            local width=math.clamp(math.floor(screen.X-24),math.min(480,want.X.Offset),want.X.Offset)
-            local height=math.clamp(math.floor(screen.Y-24),math.min(300,want.Y.Offset),want.Y.Offset)
-            if width~=self.Root.Size.X.Offset or height~=self.Root.Size.Y.Offset then
-                self.Root.Size=UDim2.fromOffset(width,height)
-            end
-        end
-        baseFit(self,instant)
-        for _,tab in ipairs(self.Tabs)do
-            tab:_applyColumns()
-            for _,hook in ipairs(tab._resizeHooks or{})do
-                pcall(hook)
-            end
-        end
-    end
-    local baseIntro=g._playIntro
-    function g:_playIntro(fromLoader)
-        if not self._introDone and not self.CurrentTab and self.Tabs[1]then
-            self:SelectTab(self.Tabs[1])
-        end
-        return baseIntro(self,fromLoader)
-    end
-
     -- Turns every flagged toggle off (their callbacks stop the workers) and destroys the window.
     function g:_unload(reason)
         if self._destroyed or self._unloading then
@@ -4294,13 +4347,13 @@ do
         local window=self.Window
         local games=type(cfg.Games)=="table"and cfg.Games or{}
         tab:_wide()
-        local gap=10
+        local gap=LAYOUT.GRID_GAP
         local cardHeight=l and 186 or 178
         local container=c("Frame",{Name="GameGrid",Size=UDim2.new(1,0,0,0),BackgroundTransparency=1,LayoutOrder=tab:_nextOrder(),Parent=tab.List})
         local grid=c("UIGridLayout",{SortOrder=Enum.SortOrder.LayoutOrder,CellPadding=UDim2.fromOffset(gap,gap),Parent=container})
         local function layout()
-            local width=window.Root.Size.X.Offset-171-32-16
-            local columns=math.clamp(math.floor((width+gap)/(170+gap)),1,4)
+            local width=window.Root.Size.X.Offset-LAYOUT.CONTENT_X-LAYOUT.CONTENT_PAD*2-LAYOUT.GRID_SLACK
+            local columns=math.clamp(math.floor((width+gap)/(LAYOUT.GRID_CELL_W+gap)),1,4)
             grid.CellSize=UDim2.new(1/columns,-math.ceil(gap*(columns-1)/columns),0,cardHeight)
             grid.FillDirectionMaxCells=columns
             local rows=math.ceil(#games/columns)
@@ -4421,7 +4474,7 @@ do
     function g:_keyTab(info)
         local window=self
         local scriptName=tostring(d.ScriptName or"Script")
-        local tab=self:Tab{Name="Key",Icon="key",Hub=true,Desc="Your access to the hub."}
+        local tab=self:Tab{Name="Key",Icon="key",Hub=true,HubOrder=3,Desc="Your access to the hub."}
         local playtime=startPlaytime(self,self.ConfigRoot,scriptName)
         tab:Section"Time left"
         local holder=c("Frame",{Name="KeyClock",Size=UDim2.new(1,0,0,78),BackgroundColor3=b.Surface2,BorderSizePixel=0,LayoutOrder=tab:_nextOrder(),Parent=tab.List})
@@ -4512,23 +4565,156 @@ do
         return tab
     end
 
-    -- Hub group at the bottom of the sidebar: Games (when a list is known), Key (with KeyInfo) and Config.
+    d.UniversalURL="https://raw.githubusercontent.com/BadjoClan/Passolini-DIST/main/Universal"
+    d.GamesURL="https://raw.githubusercontent.com/BadjoClan/Scripts/refs/heads/main/PassoliniGames"
+    -- Ui:SetUniversal(fn): a script that carries the universal tools itself (Universal.lua run directly) hands its attach
+    -- function over, so the hub zone does not download the module. fn(tab, Window, Ui, standalone).
+    function d.SetUniversal(first,second)
+        if first==d then
+            first=second
+        end
+        d._universalAttach=type(first)=="function"and first or nil
+    end
+
+    local function readSource(fileName,url)
+        if type(fileName)=="string"and type(isfile)=="function"and isfile(fileName)then
+            local read,text=pcall(readfile,fileName)
+            if read and type(text)=="string"then
+                return text
+            end
+        end
+        local fetched,body=pcall(function()
+            return game:HttpGet(url)
+        end)
+        if fetched and type(body)=="string"and#body>2 then
+            return body
+        end
+        return nil
+    end
+    local function normaliseGames(list)
+        local games={}
+        if type(list)~="table"then
+            return games
+        end
+        for _,entry in ipairs(list)do
+            if type(entry)=="table"then
+                local placeId=tonumber(entry.PlaceId or entry.place_id or entry.placeId)
+                local name=entry.Name or entry.name
+                if placeId and name then
+                    table.insert(games,{Name=tostring(name),PlaceId=placeId,UniverseId=tonumber(entry.UniverseId or entry.universe_id or entry.universeId),Image=entry.Image or entry.image,Status=entry.Status or entry.status})
+                end
+            end
+        end
+        return games
+    end
+    -- Ui:SetGames(list) > getgenv().PASSOLINI_GAMES > a JSON file (PASSOLINI_GAMES_FILE for tests, else d.GamesURL).
+    local function loadGames()
+        local given=d.Games or environment.PASSOLINI_GAMES
+        if type(given)=="table"and#given>0 then
+            return normaliseGames(given)
+        end
+        local text=readSource(environment.PASSOLINI_GAMES_FILE,environment.PASSOLINI_GAMES_URL or d.GamesURL)
+        if not text then
+            return nil
+        end
+        local decoded
+        local parsed=pcall(function()
+            decoded=G:JSONDecode(text)
+        end)
+        if not parsed or type(decoded)~="table"then
+            return nil
+        end
+        return normaliseGames(decoded.games or decoded)
+    end
+    -- The universal module is a pushed (keyed, obfuscated) script: run with PASSOLINI_UNIVERSAL_ATTACH set it returns attach().
+    local function loadUniversal()
+        if type(d._universalAttach)=="function"then
+            return d._universalAttach
+        end
+        local text=readSource(environment.PASSOLINI_UNIVERSAL_FILE,environment.PASSOLINI_UNIVERSAL_URL or d.UniversalURL)
+        if not text then
+            return nil,"download failed"
+        end
+        local compiled,compileError=loadstring(text)
+        if not compiled then
+            return nil,compileError
+        end
+        environment.PASSOLINI_UNIVERSAL_ATTACH=true
+        local ran,result=pcall(compiled)
+        environment.PASSOLINI_UNIVERSAL_ATTACH=nil
+        if ran and type(result)=="function"then
+            return result
+        end
+        return nil,ran and"no valid key, or the module returned no attach function"or result
+    end
+
+    -- Hub zone at the bottom of the sidebar, in this order: Universal (tools for any game), Hub (game dashboard), Key, Config.
+    -- Universal and the game list arrive asynchronously; the auto-load of the saved config waits for them (_hubPending).
     function g:_buildHub(cfg)
+        local window=self
         f{Size=UDim2.new(1,0,0,22),Text="  HUB",TextSize=13,FontFace=i.Display,TextColor3=b.Muted,LayoutOrder=1000,Parent=self.TabList}
-        local games=d.Games or environment.PASSOLINI_GAMES
-        if cfg.GamesTab~=false and type(games)=="table"and#games>0 then
-            local tab=self:Tab{Name="Games",Icon="layout-grid",Hub=true,Columns=1,Desc="Play sends you there and loads the script on arrival."}
-            tab:GameGrid{Games=games}
-            self.GamesTab=tab
+        local function hold()
+            window._hubPending=(window._hubPending or 0)+1
+            local released=false
+            return function()
+                if not released then
+                    released=true
+                    window._hubPending=math.max((window._hubPending or 1)-1,0)
+                end
+            end
+        end
+        if cfg.GamesTab~=false then
+            local hubTab=self:Tab{Name="Hub",Icon="layout-grid",Hub=true,HubOrder=2,Columns=1,Desc="Every game of the hub. Play sends you there and loads the script on arrival."}
+            self.HubTab=hubTab
+            self.GamesTab=hubTab
+            local release=hold()
+            task.spawn(function()
+                local games=loadGames()
+                if not window._destroyed then
+                    if games and#games>0 then
+                        hubTab:GameGrid{Games=games}
+                    else
+                        hubTab:Section"Hub"
+                        hubTab:Paragraph{Name="Game list unavailable",Content="The list of games could not be loaded. Join the Discord to see every game of the hub."}
+                        hubTab:Button{Name="Copy Discord invite",Icon="message-circle",Callback=function()
+                            copyText(window,d.Discord,"Discord invite copied: paste it in your browser.")
+                        end}
+                    end
+                end
+                release()
+            end)
         end
         if type(cfg.KeyInfo)=="table"then
             self.KeyTab=self:_keyTab(cfg.KeyInfo)
         end
         if cfg.ConfigTab~=false and type(cfg.ConfigurationSaving)=="table"and cfg.ConfigurationSaving.Enabled~=false then
-            local tab=self:Tab{Name="Config",Icon="save",Hub=true,Columns=1,Desc="Save, load and share your settings."}
+            local tab=self:Tab{Name="Config",Icon="save",Hub=true,HubOrder=4,Columns=1,Desc="Save, load and share your settings."}
             tab:ConfigManager{}
             self.ConfigTab=tab
         end
+        if cfg.Universal~=false then
+            local standalone=d._universalAttach~=nil
+            local release=hold()
+            task.spawn(function()
+                local attach,reason=loadUniversal()
+                if attach and not window._destroyed then
+                    local tab=window:Tab{Name="Universal",Icon="globe",Hub=true,HubOrder=1,Desc="Tools that work in any game."}
+                    window.UniversalTab=tab
+                    local ran,failure=pcall(attach,tab,window,d,standalone)
+                    if not ran then
+                        warn("[PassoliniUI] universal: "..tostring(failure))
+                    elseif standalone and not window._destroyed then
+                        window:SelectTab(tab)
+                    end
+                elseif not attach then
+                    warn("[PassoliniUI] universal unavailable: "..tostring(reason))
+                end
+                release()
+            end)
+        end
+        task.delay(20,function()
+            window._hubPending=0
+        end)
     end
 
     -- Key gate: blocks CreateWindow until cfg.KeyValidator(key) accepts a key. Same table as the WindUI key window:
