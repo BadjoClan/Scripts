@@ -4325,22 +4325,6 @@ do
         end
         return"rbxthumb://type=Asset&id="..tostring(entry.PlaceId).."&w=420&h=420"
     end
-    local function teleportTo(window,entry)
-        local name=tostring(entry.Name or"game")
-        local queue=queue_on_teleport or(syn and syn.queue_on_teleport)or(fluxus and fluxus.queue_on_teleport)
-        local loader=environment.PASSOLINI_LOADER or d.HubLoader
-        local queued=false
-        if type(queue)=="function"and type(loader)=="string"and loader~=""then
-            queued=pcall(queue,'if not game:IsLoaded() then game.Loaded:Wait() end repeat task.wait() until game:GetService("Players").LocalPlayer '..loader)
-        end
-        window:Notify{Title="Teleporting to "..name,Content=queued and"The hub loads by itself when you arrive."or"Your executor cannot relaunch scripts after a teleport: run the hub again when you arrive.",Type=queued and"Success"or"Warning",Duration=8}
-        local sent,reason=pcall(function()
-            TeleportService:Teleport(tonumber(entry.PlaceId),ac)
-        end)
-        if not sent then
-            window:Notify{Title="Teleport failed",Content=tostring(reason),Type="Error",Duration=8}
-        end
-    end
     function j:GameGrid(cfg)
         cfg=k(cfg,{})
         local tab=self
@@ -4348,7 +4332,7 @@ do
         local games=type(cfg.Games)=="table"and cfg.Games or{}
         tab:_wide()
         local gap=LAYOUT.GRID_GAP
-        local cardHeight=l and 186 or 178
+        local cardHeight=l and 152 or 148
         local container=c("Frame",{Name="GameGrid",Size=UDim2.new(1,0,0,0),BackgroundTransparency=1,LayoutOrder=tab:_nextOrder(),Parent=tab.List})
         local grid=c("UIGridLayout",{SortOrder=Enum.SortOrder.LayoutOrder,CellPadding=UDim2.fromOffset(gap,gap),Parent=container})
         local function layout()
@@ -4380,30 +4364,9 @@ do
                 h(dot,b.Muted)
             end
             f{Position=UDim2.fromOffset(22,124),Size=UDim2.new(1,-32,0,16),Text=maintenance and"Maintenance"or"Up to date",TextSize=12,FontFace=i.Regular,TextColor3=b.Muted,Parent=card}
-            local idle=not here and not maintenance
-            local play=c("TextButton",{AnchorPoint=Vector2.new(0,1),Position=UDim2.new(0,8,1,-8),Size=UDim2.new(1,-16,0,l and 34 or 28),BackgroundColor3=idle and b.Accent or b.Surface3,BackgroundTransparency=idle and.1 or 0,BorderSizePixel=0,Text=here and"YOU ARE HERE"or maintenance and"BACK SOON"or"PLAY",TextColor3=idle and WHITE or b.Muted,TextSize=14,FontFace=i.Display,AutoButtonColor=false,Parent=card})
-            e(play)
-            table.insert(window._controls,play)
-            if idle then
-                hoverFill(play,.1,0)
-                card.MouseEnter:Connect(function()
-                    a(cardStroke,{Color=b.StrokeHover},.12)
-                end)
-                card.MouseLeave:Connect(function()
-                    a(cardStroke,{Color=b.Stroke},.25)
-                end)
-                local busy=false
-                play.MouseButton1Click:Connect(function()
-                    if busy then
-                        return
-                    end
-                    busy=true
-                    task.spawn(function()
-                        teleportTo(window,entry)
-                        task.wait(6)
-                        busy=false
-                    end)
-                end)
+            if here then
+                local badge=f{AnchorPoint=Vector2.new(0,1),Position=UDim2.new(0,6,1,-6),Size=UDim2.fromOffset(96,18),BackgroundTransparency=0,BackgroundColor3=b.Accent,Text="YOU ARE HERE",TextSize=12,FontFace=i.Display,TextColor3=WHITE,TextXAlignment=Enum.TextXAlignment.Center,ZIndex=2,Parent=image}
+                e(badge)
             end
         end
         return n(self,{},{},container,"GameGrid")
@@ -4664,7 +4627,7 @@ do
             end
         end
         if cfg.GamesTab~=false then
-            local hubTab=self:Tab{Name="Hub",Icon="layout-grid",Hub=true,HubOrder=2,Columns=1,Desc="Every game of the hub. Play sends you there and loads the script on arrival."}
+            local hubTab=self:Tab{Name="Hub",Icon="layout-grid",Hub=true,HubOrder=2,Columns=1,Desc="Every game of the hub and its status."}
             self.HubTab=hubTab
             self.GamesTab=hubTab
             local release=hold()
