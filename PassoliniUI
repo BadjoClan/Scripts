@@ -4565,8 +4565,8 @@ do
         return tab
     end
 
-    d.UniversalURL="https://raw.githubusercontent.com/BadjoClan/Passolini-DIST/main/Universal"
-    d.GamesURL="https://raw.githubusercontent.com/BadjoClan/Scripts/refs/heads/main/PassoliniGames"
+    d.UniversalURL="https://raw.githubusercontent.com/BadjoClan/Passolini-DIST/refs/heads/main/Universal.lua"
+    d.GamesURL="https://raw.githubusercontent.com/BadjoClan/Scripts/refs/heads/main/PassoliniGames.json"
     -- Ui:SetUniversal(fn): a script that carries the universal tools itself (Universal.lua run directly) hands its attach
     -- function over, so the hub zone does not download the module. fn(tab, Window, Ui, standalone).
     function d.SetUniversal(first,second)
